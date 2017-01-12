@@ -16,11 +16,17 @@ package ucxpresso.net.homesense.Sensor;
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import android.util.Log;
+
 import net.ucxpresso.java.duino.SwiftDuino;
 import net.ucxpresso.java.duino.libs.I2Cdev;
 import net.ucxpresso.java.duino.libs.Serial;
+import net.ucxpresso.java.utilies.Timeout;
+
+import ucxpresso.net.homesense.MQTT.JavaMqttClient;
 
 public class AirQualitySense extends SenseBase {
+    private static final String TAG = "AirQualitySense";
 
     private final int   LED3_PIN = 20;      // nano51822-udk LED3
     private final int   LED4_PIN = 21;      // nano51822-udk LED4
@@ -41,11 +47,21 @@ public class AirQualitySense extends SenseBase {
     private final int   SCL_PIN = 28;
     private DHT12       mDHT12;
 
+    // MOTT Server
+    private final String         mServer = "tcp://mqtt.thingspeak.com:1883"; 
+    private final String         mChannel = "YOUR-CHANNEL-ID";
+    private final String         mApiKey = "YOUR-CHANNEL-WRITE-KEY";
+
+    private final JavaMqttClient mMqtt;
+    private final Timeout        mPublishInterval = new Timeout();
+    private final int PUBLISH_INTERVAL = 60 * 1000;  // publish @ every minute
+
     /**
      * Constructor
      */
     public AirQualitySense(String address) {
         super(address); // bluetooth MAC address
+        mMqtt = new JavaMqttClient(mServer); // with SSL
     }
 
     /**
@@ -71,8 +87,11 @@ public class AirQualitySense extends SenseBase {
         final Serial serial = new Serial(mDuino);
         serial.begin(SwiftDuino.UART_BAUDRATE.B9600, G5_RXD_PIN, G5_TXD_PIN);   // setup serial port
 
-        // Receive G5 data
+
+        // initialize G5
         G5 = new PMS5003(serial);
+        mDuino.digitalWrite(G5_RST_PIN, SwiftDuino.PinLevel.HIGH);
+        mDuino.digitalWrite(G5_SET_PIN, SwiftDuino.PinLevel.HIGH);
         G5.handle(new Runnable() {
             @Override
             public void run() {
@@ -97,6 +116,11 @@ public class AirQualitySense extends SenseBase {
         final I2Cdev i2c = new I2Cdev(mDuino);
         i2c.setup(SDA_PIN, SCL_PIN);
         mDHT12 = new DHT12(i2c);
+        notifyDataSetChanged(); // update UI
+
+        // Mqtt
+        mMqtt.connect();
+        mPublishInterval.reset();
     }
 
     /**
@@ -110,9 +134,34 @@ public class AirQualitySense extends SenseBase {
         if ( mDHT12.read() ) {
             mSensors.get(3).update(mDHT12.temperature(), timeToDuration());
             mSensors.get(4).update(mDHT12.humidity(), timeToDuration());
-            notifyDataSetChanged(); // update UI
         }
-        mDuino.delay(10000);
+        notifyDataSetChanged(); // update UI
+
+        // Send to ThingSpeak
+        if ( mMqtt.isConnected() ) {
+            if ( mPublishInterval.isExpired(PUBLISH_INTERVAL) ) {
+                mPublishInterval.reset();
+                String payload =
+                        "field1=" + mSensors.get(1).current() +
+                        "&field2=" + mSensors.get(3).current() +
+                        "&field3=" + mSensors.get(4).current() +
+                        "&status=MQTTPUBLISH";
+
+                mMqtt.publish(mChannel, mApiKey, payload);
+                Log.d(TAG, "Mqtt published:" + payload);
+            }
+        }
+        mDuino.delay(5000);
     }
 
+	/**
+	 * Bluetooth Disconnect
+	 */
+    @Override
+    public void disconnected() {
+        super.disconnected();
+        if ( mMqtt.isConnected() ) {
+            mMqtt.disconnect();
+        }
+    }
 }
