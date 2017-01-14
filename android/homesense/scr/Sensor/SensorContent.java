@@ -24,7 +24,7 @@ import ucxpresso.net.homesense.SensorAdapter;
  */
 
 public class SensorContent extends Object {
-    static final int DEF_MAX_RECORD_COUNT = 1440;
+    static final int DEF_MAX_RECORD_COUNT = 720;
     public String mDescription;
     public String mTag;
     public String mUnit;
@@ -73,14 +73,14 @@ public class SensorContent extends Object {
     }
 
     public String avg() {
-        return String.format("%.2f", mAvg);
+        return String.format("%.1f", mAvg);
     }
 
     public String min() {
-        return String.format("%.2f", mMin);
+        return String.format("%.1f", mMin);
     }
 
     public String max() {
-        return String.format("%.2f", mMax);
+        return String.format("%.1f", mMax);
     }
 }

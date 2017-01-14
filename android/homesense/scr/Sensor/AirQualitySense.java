@@ -18,7 +18,6 @@ package ucxpresso.net.homesense.Sensor;
 
 import android.util.Log;
 
-import net.ucxpresso.java.duino.SwiftDuino;
 import net.ucxpresso.java.duino.libs.I2Cdev;
 import net.ucxpresso.java.duino.libs.Serial;
 import net.ucxpresso.java.utilies.Timeout;
@@ -48,9 +47,9 @@ public class AirQualitySense extends SenseBase {
     private DHT12       mDHT12;
 
     // MOTT Server
-    private final String         mServer = "tcp://mqtt.thingspeak.com:1883"; 
-    private final String         mChannel = "YOUR-CHANNEL-ID";
-    private final String         mApiKey = "YOUR-CHANNEL-WRITE-KEY";
+    private final String         mServer = "tcp://mqtt.thingspeak.com:1883"; //1883";
+    private final String         mChannel = "206063";
+    private final String         mApiKey = "KC83RATDMIL8FVJ8";
 
     private final JavaMqttClient mMqtt;
     private final Timeout        mPublishInterval = new Timeout();
@@ -70,57 +69,59 @@ public class AirQualitySense extends SenseBase {
     @Override
     public void setup() {
         super.setup();
-
-        // Setup Sensor Channels
-        SensorContent ch0 = new SensorContent("Standard PM1.0", "PM1.0", "ug/m3");
-        SensorContent ch1 = new SensorContent("Standard PM2.5", "PM2.5", "ug/m3");
-        SensorContent ch2 = new SensorContent("Standard PM10", "PM10", "ug/m3");
-        SensorContent ch3 = new SensorContent("Temperature", "Temp", "°C");
-        SensorContent ch4 = new SensorContent("Humidity", "Humi", "%");
         mSensors.clear();
-        mSensors.add(ch0);
-        mSensors.add(ch1);
-        mSensors.add(ch2);
-        mSensors.add(ch3);
-        mSensors.add(ch4);
 
-        final Serial serial = new Serial(mDuino);
-        serial.begin(SwiftDuino.UART_BAUDRATE.B9600, G5_RXD_PIN, G5_TXD_PIN);   // setup serial port
+        // Setup Sensor base fields
+        SensorContent field1 = new SensorContent("Temperature", "Temp", "°C");
+        SensorContent field2 = new SensorContent("Humidity", "Humi", "%");
+        mSensors.add(field1);
+        mSensors.add(field2);
 
+        final Serial serial = new Serial(this);
+        serial.begin(UART_BAUDRATE.B9600, G5_RXD_PIN, G5_TXD_PIN);   // setup serial port
 
         // initialize G5
         G5 = new PMS5003(serial);
-        mDuino.digitalWrite(G5_RST_PIN, SwiftDuino.PinLevel.HIGH);
-        mDuino.digitalWrite(G5_SET_PIN, SwiftDuino.PinLevel.HIGH);
+        digitalWrite(G5_RST_PIN, PinLevel.HIGH);
+        digitalWrite(G5_SET_PIN, PinLevel.HIGH);
         G5.handle(new Runnable() {
             @Override
             public void run() {
-                mDuino.digitalWrite(LED4_PIN, SwiftDuino.PinLevel.HIGH);
+                if ( mSensors.size() < 5 ) {
+                    SensorContent field3 = new SensorContent("Standard PM1.0", "PM1.0", "ug/m3");
+                    SensorContent field4 = new SensorContent("Standard PM2.5", "PM2.5", "ug/m3");
+                    SensorContent field5 = new SensorContent("Standard PM10", "PM10", "ug/m3");
+                    mSensors.add(field3);
+                    mSensors.add(field4);
+                    mSensors.add(field5);
+                }
 
-                final int PM10 = G5.field(PMS5003.FIELD.PM10_STD);
-                final int PM25 = G5.field(PMS5003.FIELD.PM25_STD);
-                final int PM100 = G5.field(PMS5003.FIELD.PM100_STD);
+                digitalWrite(LED4_PIN, PinLevel.HIGH);
+
+                int PM10 = G5.field(PMS5003.FIELD.PM10_STD);
+                int PM25 = G5.field(PMS5003.FIELD.PM25_STD);
+                int PM100 = G5.field(PMS5003.FIELD.PM100_STD);
 
                 mFilter1.update(PM10);
                 mFilter2.update(PM25);
                 if (mFilter3.update(PM100)) {
-                    mSensors.get(0).update(mFilter1.result(), timeToDuration());
-                    mSensors.get(1).update(mFilter2.result(), timeToDuration());
-                    mSensors.get(2).update(mFilter3.result(), timeToDuration());
+                    mSensors.get(2).update(mFilter1.result(), timeToDuration());
+                    mSensors.get(3).update(mFilter2.result(), timeToDuration());
+                    mSensors.get(4).update(mFilter3.result(), timeToDuration());
                 }
-                mDuino.digitalWrite(LED4_PIN, SwiftDuino.PinLevel.LOW);
+                digitalWrite(LED4_PIN, PinLevel.LOW);
             }
         });
 
         // Setup DHT12
-        final I2Cdev i2c = new I2Cdev(mDuino);
+        final I2Cdev i2c = new I2Cdev(this);
         i2c.setup(SDA_PIN, SCL_PIN);
         mDHT12 = new DHT12(i2c);
         notifyDataSetChanged(); // update UI
 
         // Mqtt
-        mMqtt.connect();
         mPublishInterval.reset();
+        //mMqtt.connect();
     }
 
     /**
@@ -132,36 +133,40 @@ public class AirQualitySense extends SenseBase {
 
         // read Temperature & Humidity
         if ( mDHT12.read() ) {
-            mSensors.get(3).update(mDHT12.temperature(), timeToDuration());
-            mSensors.get(4).update(mDHT12.humidity(), timeToDuration());
+            digitalWrite(LED3_PIN, PinLevel.HIGH);
+            mSensors.get(0).update(mDHT12.temperature(), timeToDuration());
+            mSensors.get(1).update(mDHT12.humidity(), timeToDuration());
+            digitalWrite(LED3_PIN, PinLevel.LOW);;
         }
         notifyDataSetChanged(); // update UI
 
         // Send to ThingSpeak
-        if ( mMqtt.isConnected() ) {
-            if ( mPublishInterval.isExpired(PUBLISH_INTERVAL) ) {
+        if ( mPublishInterval.isExpired(PUBLISH_INTERVAL) ) {
+            if ( mMqtt.connectIfNecessary() ) {
                 mPublishInterval.reset();
-                String payload =
-                        "field1=" + mSensors.get(1).current() +
-                        "&field2=" + mSensors.get(3).current() +
-                        "&field3=" + mSensors.get(4).current() +
-                        "&status=MQTTPUBLISH";
+                Log.d(TAG, "Mqtt publishing...");
+
+                String payload = "field1=" + mSensors.get(0).current() +
+                                "&field2=" + mSensors.get(1).current() ;
+
+                if (mSensors.size() > 2) {
+                    payload += "field3=" + mSensors.get(3).current();
+                }
+
+                payload += "&status=Publish by " + io().ble().peripheral().getName();
 
                 mMqtt.publish(mChannel, mApiKey, payload);
                 Log.d(TAG, "Mqtt published:" + payload);
             }
         }
-        mDuino.delay(5000);
+        delay(5000);
     }
 
-	/**
-	 * Bluetooth Disconnect
-	 */
+    /**
+     * Bluetooth Disconnected
+     */
     @Override
     public void disconnected() {
         super.disconnected();
-        if ( mMqtt.isConnected() ) {
-            mMqtt.disconnect();
-        }
     }
 }

@@ -56,7 +56,7 @@ public class PMS5003 extends Object {
         mSerial.event(new Runnable() {
             @Override
             public void run() {
-                if ( mSerial.available() >= 32 ) {
+                while ( mSerial.available() >= 32 ) {
                     if ( mSerial.read() == 0x42 && mSerial.read() == 0x4d ) {
                         reset_checksum();
                         final short length = read(true);

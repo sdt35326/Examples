@@ -33,7 +33,7 @@ public class DHT12 extends Object {
 
     public boolean read() {
         byte[] bytes = mI2C.readBytes(I2C_ADDRESS, (byte) 0, 4, true);
-        if ( bytes != null ) {
+        if ( bytes != null && bytes.length >= 4) {
             mHumidity = (float)bytes[0] + scale(bytes[1]);
             mTemperature = (float)bytes[2] + scale(bytes[3]);
             return true;

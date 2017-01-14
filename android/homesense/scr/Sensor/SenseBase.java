@@ -15,15 +15,11 @@ package ucxpresso.net.homesense.Sensor;
  * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
  * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-import android.app.Activity;
-import android.widget.BaseAdapter;
-
 import net.ucxpresso.java.duino.SwiftDuino;
 import java.util.ArrayList;
 
-public class SenseBase extends Object implements SwiftDuino.arduinoLike {
-    private final String mAddress;
-    protected SwiftDuino mDuino;
+public class SenseBase extends SwiftDuino implements SwiftDuino.arduinoLike {
+    protected final String mAddress;
 
     // Sensor Data
     protected ArrayList<SensorContent> mSensors;
@@ -39,8 +35,9 @@ public class SenseBase extends Object implements SwiftDuino.arduinoLike {
     private long mStopTime;
 
     public SenseBase(String address) {
+        super();
+        delegate(this);
         mAddress = address;
-        mDuino = new SwiftDuino(this);
         mSensors = new ArrayList<SensorContent>();
         mStartTime = 0;
         mSenseUI = null;
@@ -48,10 +45,6 @@ public class SenseBase extends Object implements SwiftDuino.arduinoLike {
 
     public boolean equals(String address) {
         return mAddress.equals(address);
-    }
-
-    public SwiftDuino duino() {
-        return mDuino;
     }
 
     public ArrayList<SensorContent> sensors() {
@@ -66,7 +59,7 @@ public class SenseBase extends Object implements SwiftDuino.arduinoLike {
         mSenseUI = null;
     }
 
-    public synchronized void notifyDataSetChanged() {
+    protected synchronized void notifyDataSetChanged() {
         if ( mSenseUI != null ) {
             mSenseUI.onNotifyDataSetChanged();
         }
@@ -82,17 +75,17 @@ public class SenseBase extends Object implements SwiftDuino.arduinoLike {
 
     @Override
     public void setup() {
-        mStartTime = System.currentTimeMillis() / 1000; // Time Unit by Second
+        mStartTime = SwiftDuino.millis() / 1000; // Time Unit by Second
         mStopTime = mStartTime;
     }
 
     @Override
     public void loop() {
-        mStopTime = System.currentTimeMillis() / 1000;  // Time Unit by Second
+        mStopTime = SwiftDuino.millis() / 1000;  // Time Unit by Second
     }
 
     @Override
     public void disconnected() {
-        detachUiHandle();
+        close(); // exit duino's loop
     }
 }
