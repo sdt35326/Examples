@@ -48,8 +48,8 @@ public class AirQualitySense extends SenseBase {
 
     // MOTT Server
     private final String         mServer = "tcp://mqtt.thingspeak.com:1883"; //1883";
-    private final String         mChannel = "206063";
-    private final String         mApiKey = "KC83RATDMIL8FVJ8";
+    private final String         mChannel = "YOUR-CHANNEL-ID";
+    private final String         mApiKey = "YOUR-WRITE-KEY";
 
     private final JavaMqttClient mMqtt;
     private final Timeout        mPublishInterval = new Timeout();
