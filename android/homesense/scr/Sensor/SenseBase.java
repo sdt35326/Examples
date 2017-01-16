@@ -84,6 +84,9 @@ public class SenseBase extends SwiftDuino implements SwiftDuino.arduinoLike {
         mStopTime = SwiftDuino.millis() / 1000;  // Time Unit by Second
     }
 
+    public void willDisconnect() {
+    }
+
     @Override
     public void disconnected() {
         close(); // exit duino's loop
